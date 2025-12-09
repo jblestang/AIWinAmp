@@ -4,3 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+anyhow = "1"
+eframe = { version = "0.27.2", default-features = false, features = ["glow"] }
+egui = "0.27"
+rand = "0.8"
+serde = { version = "1", features = ["derive"] }
+parking_lot = "0.12"
+
+[dev-dependencies]
+pretty_assertions = "1"
