@@ -1,0 +1,20 @@
+[package]
+name = "aiwinamp"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+eframe = { version = "0.27.2", default-features = false, features = ["glow"] }
+egui = "0.27"
+egui_plot = "0.27"
+rand = "0.8"
+serde = { version = "1", features = ["derive"] }
+parking_lot = "0.12"
+rfd = "0.14"
+rodio = "0.18"
+symphonia = { version = "0.5.5", features = ["aac", "mp3", "flac", "vorbis", "wav", "isomp4"] }
+rustfft = "6"
+
+[dev-dependencies]
+pretty_assertions = "1"
