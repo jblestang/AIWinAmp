@@ -46,7 +46,7 @@ cargo +nightly test
 The repository ships with `scripts/capture_screenshot.sh`, which runs the app under `xvfb-run` and uses ImageMagick’s `import` to save a PNG for documentation.
 
 ```bash
-sudo apt-get install -y libxkbcommon-x11-0 imagemagick  # once per machine
+sudo apt-get install -y libxkbcommon-x11-0 imagemagick xdotool  # once per machine
 ./scripts/capture_screenshot.sh assets/screenshots/v2_real.png
 ```
 
