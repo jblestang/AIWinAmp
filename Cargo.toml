@@ -11,6 +11,8 @@ egui_plot = "0.27"
 rand = "0.8"
 serde = { version = "1", features = ["derive"] }
 parking_lot = "0.12"
+rfd = "0.14"
+symphonia = { version = "0.5.5", features = ["aac", "mp3", "flac", "vorbis", "wav", "isomp4"] }
 
 [dev-dependencies]
 pretty_assertions = "1"

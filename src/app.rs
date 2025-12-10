@@ -5,6 +5,7 @@ use crate::playlist::{Playlist, Track};
 use anyhow::Result;
 use eframe::egui;
 use egui_plot::{Bar, BarChart, Plot};
+use rfd::FileDialog;
 use std::path::PathBuf;
 use std::time::Instant;
 
@@ -16,13 +17,15 @@ pub struct WinampApp {
     status: String,
     /// Stores last frame instant so we can tick the core with delta time.
     last_frame: Instant,
+    /// Next unique track id for imported audio.
+    next_track_id: u64,
 }
 
 impl WinampApp {
     /// Creates the egui app, loads demo tracks, and wires up rodio.
     pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
         // Seed playlist with both file backed and synthetic demo tracks.
-        let playlist = Self::build_initial_playlist();
+        let (playlist, next_track_id) = Self::build_initial_playlist();
         // Rodio engine gracefully degrades when running in headless CI.
         let audio: Box<dyn AudioEngine> = Box::new(SilentEngine::new());
         // Assemble the Winamp core and default status message.
@@ -30,21 +33,26 @@ impl WinampApp {
             core: WinampCore::new(playlist, audio),
             status: "Ready".to_string(),
             last_frame: Instant::now(),
+            next_track_id,
         }
     }
 
     /// Builds the initial playlist including the bundled sample asset.
-    fn build_initial_playlist() -> Playlist {
+    fn build_initial_playlist() -> (Playlist, u64) {
         // Start from an empty playlist for deterministic ordering.
         let mut playlist = Playlist::new();
+        let mut next_id = 1;
         // Always include the bundled sine wave sample when available.
         if let Some(sample) = Self::sample_track_path() {
-            playlist.add_track(Track::from_path(sample, 1));
+            playlist.add_track(Track::from_path(sample, next_id));
+            next_id += 1;
         }
         // Add two synthetic demo tracks to flesh out the UI quickly.
-        playlist.add_track(Track::demo("Neon Skyline", 2));
-        playlist.add_track(Track::demo("LoFi Drip", 3));
-        playlist
+        playlist.add_track(Track::demo("Neon Skyline", next_id));
+        next_id += 1;
+        playlist.add_track(Track::demo("LoFi Drip", next_id));
+        next_id += 1;
+        (playlist, next_id)
     }
 
     /// Resolves the bundled sample track relative to the manifest directory.
@@ -65,6 +73,22 @@ impl WinampApp {
             Ok(_) => format!("{} ok", action),
             Err(err) => format!("{} failed: {}", action, err),
         };
+    }
+
+    /// Generates a new unique track identifier.
+    fn allocate_track_id(&mut self) -> u64 {
+        let id = self.next_track_id;
+        self.next_track_id += 1;
+        id
+    }
+
+    /// Adds a real audio file to the playlist and updates UI status.
+    fn import_audio_track(&mut self, path: PathBuf) {
+        let id = self.allocate_track_id();
+        let track = Track::from_path(&path, id);
+        let label = track.title.clone();
+        self.core.playlist_mut().add_track(track);
+        self.status = format!("Imported {}", label);
     }
 }
 
@@ -129,11 +153,15 @@ impl eframe::App for WinampApp {
                     }
                     if ui.button("Add sample").clicked() {
                         if let Some(path) = Self::sample_track_path() {
-                            let id = (self.core.playlist().len() + 100) as u64;
-                            self.core
-                                .playlist_mut()
-                                .add_track(Track::from_path(path, id));
-                            self.status = "sample cloned".to_string();
+                            self.import_audio_track(path);
+                        }
+                    }
+                    if ui.button("Import audio").clicked() {
+                        if let Some(path) = FileDialog::new()
+                            .add_filter("Audio", &["mp3", "flac", "ogg", "wav", "aac", "m4a"])
+                            .pick_file()
+                        {
+                            self.import_audio_track(path);
                         }
                     }
                 });

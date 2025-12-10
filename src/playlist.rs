@@ -1,3 +1,4 @@
+use crate::media;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -41,15 +42,26 @@ impl Track {
         // Resolve owned buffer for long lived storage.
         let full_path = path.as_ref().to_path_buf();
         // Pull filename for title when no metadata parser is available.
-        let title = full_path
+        let mut title = full_path
             .file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or("Unknown")
             .to_string();
         // Artist is unknown for raw files so we reuse the title.
-        let artist = "Local File".to_string();
-        // We cannot easily derive duration without decoding, so guess 120s.
-        let duration_secs = 120;
+        let mut artist = "Local File".to_string();
+        // Default duration in case probing fails.
+        let mut duration_secs = 120;
+        if let Ok(meta) = media::analyze_audio(&full_path) {
+            if let Some(found_title) = meta.title {
+                title = found_title;
+            }
+            if let Some(found_artist) = meta.artist {
+                artist = found_artist;
+            }
+            if let Some(found_duration) = meta.duration_secs {
+                duration_secs = found_duration.max(1);
+            }
+        }
         // Return the assembled track entry for playlist consumption.
         Self {
             id,
@@ -236,5 +248,16 @@ mod tests {
         // Rewind from zero and expect wrap to the tail index.
         playlist.rewind();
         assert_eq!(playlist.active_index(), Some(2));
+    }
+
+    /// R6:T4 - probe metadata from bundled sample audio for realistic label/duration.
+    #[test]
+    fn from_path_reads_metadata() {
+        let sample = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/audio/sample.wav");
+        let track = Track::from_path(sample, 99);
+        assert_eq!(track.id, 99);
+        // Duration is deterministic for the generated sample.
+        assert!(track.duration_secs >= 1);
+        assert!(track.path.is_some());
     }
 }

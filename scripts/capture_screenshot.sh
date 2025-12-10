@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-OUT_PATH=${1:-assets/screenshots/v3_spectrum.png}
+OUT_PATH=${1:-assets/screenshots/v4_audio.png}
 RESOLUTION=${AIWINAMP_CAPTURE_RES:-1024x768x24}
 WINDOW_TITLE=${AIWINAMP_CAPTURE_TITLE:-AIWinAmp}
+WAIT_ITERATIONS=${AIWINAMP_CAPTURE_WAIT:-40}
 mkdir -p "$(dirname "$OUT_PATH")"
 ABS_OUT="$(python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "$OUT_PATH")"
 
@@ -11,7 +12,8 @@ xvfb-run -a -s "-screen 0 ${RESOLUTION}" bash -c "
 set -euo pipefail
 cargo +nightly run --release >/tmp/aiwinamp_capture.log 2>&1 &
 APP_PID=\$!
-for _ in {1..20}; do
+WINDOW_ID=\"\"
+for ((i=0; i<${WAIT_ITERATIONS}; i++)); do
     WINDOW_ID=\$(xdotool search --name \"${WINDOW_TITLE}\" || true)
     if [ -n \"\$WINDOW_ID\" ]; then
         break
