@@ -1,5 +1,6 @@
 use crate::audio::{AudioEngine, SilentEngine};
 use crate::core::WinampCore;
+use crate::equalizer::EQUALIZER_BANDS;
 use crate::playlist::{Playlist, Track};
 use anyhow::Result;
 use eframe::egui;
@@ -182,19 +183,26 @@ impl eframe::App for WinampApp {
                 if ui.button("Reset").clicked() {
                     self.core.equalizer_mut().reset();
                 }
-                let bands = self.core.equalizer().bands();
-                for (idx, mut gain) in bands.into_iter().enumerate() {
-                    ui.vertical(|ui| {
-                        ui.label(format!("B{}", idx + 1));
-                        if ui
-                            .add(egui::Slider::new(&mut gain, -12.0..=12.0).vertical())
-                            .changed()
-                        {
-                            self.core.equalizer_mut().set_band(idx, gain);
-                        }
-                    });
-                }
             });
+            const ROW_SIZE: usize = EQUALIZER_BANDS / 2;
+            let bands = self.core.equalizer().bands();
+            for (chunk_idx, chunk) in bands.chunks(ROW_SIZE).enumerate() {
+                ui.horizontal_wrapped(|ui| {
+                    for (offset, gain_ref) in chunk.iter().enumerate() {
+                        let band_idx = chunk_idx * ROW_SIZE + offset;
+                        let mut gain = *gain_ref;
+                        ui.vertical(|ui| {
+                            ui.label(format!("B{}", band_idx + 1));
+                            if ui
+                                .add(egui::Slider::new(&mut gain, -12.0..=12.0).vertical())
+                                .changed()
+                            {
+                                self.core.equalizer_mut().set_band(band_idx, gain);
+                            }
+                        });
+                    }
+                });
+            }
         });
     }
 }

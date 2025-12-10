@@ -2,12 +2,12 @@
 
 AIWinAmp is a lightweight Winamp-inspired desktop music player written in Rust + egui. It focuses on a deterministic simulation of Winamp's signature transport, playlist, equalizer, and UV meter so it runs headless in CI while remaining faithful to the feel of the original.
 
-![AIWinAmp Screenshot](assets/screenshots/v2_real.png)
+![AIWinAmp Screenshot](assets/screenshots/v3_spectrum.png)
 
 ## Features
 - Winamp-style transport bar with Play/Pause/Stop/Prev/Next controls and progress bar.
 - Playlist management with demo tracks, row selection, and easy demo/sample injection.
-- Simulated equalizer with five clamped bands plus reset action.
+- Simulated 16-band equalizer with clamped sliders plus instant reset.
 - Procedural UV-style spectrum visualizer reacting to transport progress and EQ boost.
 - Silent audio backend that can be swapped for a native engine without changing UI logic.
 - Comprehensive unit + functional tests mapped to requirements in `docs/requirements.md`.
@@ -39,7 +39,8 @@ cargo +nightly test
 
 ## Assets & Screenshots
 - `assets/audio/sample.wav` – bundled sine-wave sample for demo playlist entries.
-- `assets/screenshots/v2_real.png` – captured from the running egui application under Xvfb.
+- `assets/screenshots/v3_spectrum.png` – current spectrum+equalizer capture from the running egui application under Xvfb.
+- `assets/screenshots/v2_real.png` – earlier snapshot kept for history.
 - `assets/screenshots/v1_mock.png` – early layout mock kept for historical reference.
 
 ### Capturing a Fresh Screenshot
@@ -47,7 +48,7 @@ The repository ships with `scripts/capture_screenshot.sh`, which runs the app un
 
 ```bash
 sudo apt-get install -y libxkbcommon-x11-0 imagemagick xdotool  # once per machine
-./scripts/capture_screenshot.sh assets/screenshots/v2_real.png
+./scripts/capture_screenshot.sh assets/screenshots/v3_spectrum.png
 ```
 
 ## Comment Density

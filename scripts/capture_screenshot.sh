@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-OUT_PATH=${1:-assets/screenshots/v2_real.png}
+OUT_PATH=${1:-assets/screenshots/v3_spectrum.png}
 RESOLUTION=${AIWINAMP_CAPTURE_RES:-1024x768x24}
 WINDOW_TITLE=${AIWINAMP_CAPTURE_TITLE:-AIWinAmp}
 mkdir -p "$(dirname "$OUT_PATH")"

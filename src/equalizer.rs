@@ -1,15 +1,20 @@
-/// Equalizer emulates Winamp's five band control surface.
+/// Number of equalizer bands exposed to the UI.
+pub const EQUALIZER_BANDS: usize = 16;
+
+/// Equalizer emulates Winamp's multi-band control surface.
 #[derive(Clone, Debug)]
 pub struct Equalizer {
     /// Gain per band in decibels.
-    bands: [f32; 5],
+    bands: [f32; EQUALIZER_BANDS],
 }
 
 impl Equalizer {
     /// Constructs a neutral equalizer with flat gains.
     pub fn new() -> Self {
         // Initialize each band at 0 dB to avoid coloration.
-        Self { bands: [0.0; 5] }
+        Self {
+            bands: [0.0; EQUALIZER_BANDS],
+        }
     }
 
     /// Sets a band gain while clamping to +/-12 dB like Winamp.
@@ -25,11 +30,11 @@ impl Equalizer {
     /// Resets every band to neutral for quick A/B comparisons.
     pub fn reset(&mut self) {
         // Assign a new array literal for clarity.
-        self.bands = [0.0; 5];
+        self.bands = [0.0; EQUALIZER_BANDS];
     }
 
     /// Returns the immutable band array for UI rendering.
-    pub fn bands(&self) -> [f32; 5] {
+    pub fn bands(&self) -> [f32; EQUALIZER_BANDS] {
         // Copy the array because it is tiny and stack friendly.
         self.bands
     }
@@ -66,6 +71,6 @@ mod tests {
         eq.set_band(1, -2.0);
         // Trigger reset and expect zeros across the board.
         eq.reset();
-        assert_eq!(eq.bands(), [0.0; 5]);
+        assert_eq!(eq.bands(), [0.0; EQUALIZER_BANDS]);
     }
 }
