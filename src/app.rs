@@ -3,6 +3,7 @@ use crate::core::WinampCore;
 use crate::playlist::{Playlist, Track};
 use anyhow::Result;
 use eframe::egui;
+use egui_plot::{Bar, BarChart, Plot};
 use std::path::PathBuf;
 use std::time::Instant;
 
@@ -160,8 +161,21 @@ impl eframe::App for WinampApp {
         // Central panel hosts the faux visualizer plus equalizer controls.
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Visualizer");
-            let level = self.core.visual_level();
-            ui.add(egui::ProgressBar::new(level).text("UV"));
+            Plot::new("spectrum")
+                .allow_drag(false)
+                .allow_zoom(false)
+                .include_y(0.0)
+                .include_y(1.0)
+                .show(ui, |plot_ui| {
+                    let bars: Vec<_> = self
+                        .core
+                        .visual_spectrum()
+                        .iter()
+                        .enumerate()
+                        .map(|(idx, level)| Bar::new(idx as f64, *level as f64).width(0.8))
+                        .collect();
+                    plot_ui.bar_chart(BarChart::new(bars));
+                });
             ui.separator();
             ui.horizontal(|ui| {
                 ui.label("Equalizer");

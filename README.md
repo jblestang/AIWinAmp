@@ -8,7 +8,7 @@ AIWinAmp is a lightweight Winamp-inspired desktop music player written in Rust +
 - Winamp-style transport bar with Play/Pause/Stop/Prev/Next controls and progress bar.
 - Playlist management with demo tracks, row selection, and easy demo/sample injection.
 - Simulated equalizer with five clamped bands plus reset action.
-- Procedural UV-style visualizer that reacts to transport progress and EQ boost.
+- Procedural UV-style spectrum visualizer reacting to transport progress and EQ boost.
 - Silent audio backend that can be swapped for a native engine without changing UI logic.
 - Comprehensive unit + functional tests mapped to requirements in `docs/requirements.md`.
 

@@ -33,9 +33,11 @@ fn r5_visual_meter_changes_over_time() {
     playlist.add_track(Track::demo("Meter", 321));
     let mut core = WinampCore::new(playlist, Box::new(SilentAudio));
     core.play().unwrap();
-    let before = core.visual_level();
+    let before = core.visual_spectrum().clone();
     core.tick(0.5).unwrap();
-    let after = core.visual_level();
-    assert!(after >= 0.0 && after <= 1.0);
-    assert_ne!(before, after);
+    let after = core.visual_spectrum().clone();
+    for level in after {
+        assert!(level >= 0.0 && level <= 1.0);
+    }
+    assert_ne!(before.to_vec(), after.to_vec());
 }

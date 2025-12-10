@@ -1,7 +1,7 @@
 use crate::audio::AudioEngine;
 use crate::equalizer::Equalizer;
 use crate::playlist::Playlist;
-use crate::visuals::VisualMeter;
+use crate::visuals::{VisualMeter, VISUAL_BANDS};
 use anyhow::Result;
 
 /// TransportState mirrors Winamp's classic play/pause/stop triad.
@@ -29,8 +29,8 @@ pub struct WinampCore {
     equalizer: Equalizer,
     /// Visual meter synthesizes a faux UV display.
     visual_meter: VisualMeter,
-    /// Cached last visual level to avoid recomputing mid frame.
-    visual_level: f32,
+    /// Cached spectrum levels to avoid recomputing mid frame.
+    visual_levels: [f32; VISUAL_BANDS],
 }
 
 impl WinampCore {
@@ -44,7 +44,7 @@ impl WinampCore {
             volume: 0.8,
             equalizer: Equalizer::new(),
             visual_meter: VisualMeter::new(0xAA55AA55),
-            visual_level: 0.0,
+            visual_levels: [0.0; VISUAL_BANDS],
         }
     }
 
@@ -161,10 +161,9 @@ impl WinampCore {
             TransportState::Paused { progress } => self.progress_from_secs(progress),
             TransportState::Stopped => 0.0,
         };
-        self.visual_level = self.visual_meter.sample(
-            normalized_transport,
-            self.equalizer.average_gain().abs() / 12.0,
-        );
+        self.visual_levels = self
+            .visual_meter
+            .sample(normalized_transport, self.equalizer.average_gain() / 12.0);
         Ok(())
     }
 
@@ -178,9 +177,9 @@ impl WinampCore {
         }
     }
 
-    /// Returns the last sampled visual level.
-    pub fn visual_level(&self) -> f32 {
-        self.visual_level
+    /// Returns the last sampled visual spectrum.
+    pub fn visual_spectrum(&self) -> &[f32; VISUAL_BANDS] {
+        &self.visual_levels
     }
 
     /// Helper converting seconds to normalized progress.
