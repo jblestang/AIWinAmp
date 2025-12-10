@@ -1,6 +1,5 @@
-use crate::audio::{AudioEngine, SilentEngine};
+use crate::audio::{AudioEngine, RodioEngine};
 use crate::core::WinampCore;
-use crate::equalizer::EQUALIZER_BANDS;
 use crate::playlist::{Playlist, Track};
 use anyhow::Result;
 use eframe::egui;
@@ -27,7 +26,7 @@ impl WinampApp {
         // Seed playlist with both file backed and synthetic demo tracks.
         let (playlist, next_track_id) = Self::build_initial_playlist();
         // Rodio engine gracefully degrades when running in headless CI.
-        let audio: Box<dyn AudioEngine> = Box::new(SilentEngine::new());
+        let audio: Box<dyn AudioEngine> = RodioEngine::new_or_silent();
         // Assemble the Winamp core and default status message.
         Self {
             core: WinampCore::new(playlist, audio),
@@ -37,33 +36,41 @@ impl WinampApp {
         }
     }
 
-    /// Builds the initial playlist including the bundled sample asset.
+    /// Builds the initial playlist including all audio files from assets/audio directory.
     fn build_initial_playlist() -> (Playlist, u64) {
         // Start from an empty playlist for deterministic ordering.
         let mut playlist = Playlist::new();
         let mut next_id = 1;
-        // Always include the bundled sine wave sample when available.
-        if let Some(sample) = Self::sample_track_path() {
-            playlist.add_track(Track::from_path(sample, next_id));
-            next_id += 1;
+        // Load all audio files from the assets/audio directory.
+        let audio_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/audio");
+        if let Ok(entries) = std::fs::read_dir(&audio_dir) {
+            let mut audio_files: Vec<PathBuf> = entries
+                .filter_map(|entry| {
+                    entry.ok().and_then(|e| {
+                        let path = e.path();
+                        if path.is_file() {
+                            // Check if it's an audio file by extension
+                            let ext = path.extension()?.to_str()?.to_lowercase();
+                            if matches!(ext.as_str(), "mp3" | "wav" | "flac" | "ogg" | "aac" | "m4a") {
+                                Some(path)
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    })
+                })
+                .collect();
+            // Sort for deterministic ordering
+            audio_files.sort();
+            // Add all audio files to the playlist
+            for audio_file in audio_files {
+                playlist.add_track(Track::from_path(audio_file, next_id));
+                next_id += 1;
+            }
         }
-        // Add two synthetic demo tracks to flesh out the UI quickly.
-        playlist.add_track(Track::demo("Neon Skyline", next_id));
-        next_id += 1;
-        playlist.add_track(Track::demo("LoFi Drip", next_id));
-        next_id += 1;
         (playlist, next_id)
-    }
-
-    /// Resolves the bundled sample track relative to the manifest directory.
-    fn sample_track_path() -> Option<PathBuf> {
-        // Compose the absolute path once to support drag and drop later on.
-        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/audio/sample.wav");
-        if path.exists() {
-            Some(path)
-        } else {
-            None
-        }
     }
 
     /// Helper to mutate the status text whenever an action succeeds or fails.
@@ -103,6 +110,14 @@ impl eframe::App for WinampApp {
         if let Err(err) = self.core.tick(delta) {
             self.status = format!("tick failed: {}", err);
         }
+        
+        // Request continuous repaint when audio is playing (for smooth spectrum and progress updates)
+        // Otherwise, egui will only repaint on user input (mouse/keyboard)
+        let is_playing = matches!(self.core.transport(), crate::core::TransportState::Playing { .. });
+        if is_playing {
+            // Request repaint at ~30 FPS for smooth visuals (every ~33ms)
+            ctx.request_repaint_after(std::time::Duration::from_millis(1000/25));
+        }
         // Render top transport panel similar to Winamp's layout.
         egui::TopBottomPanel::top("transport").show(ctx, |ui| {
             ui.horizontal(|ui| {
@@ -135,8 +150,26 @@ impl eframe::App for WinampApp {
                     self.core.set_volume(volume);
                 }
             });
-            let progress = self.core.progress();
-            ui.add(egui::ProgressBar::new(progress).show_percentage());
+            // Get progress from core (based on actual elapsed playback time, not mouse position)
+            // This value is read-only and calculated from frame delta time
+            let progress_value = self.core.progress();
+            
+            // Create a read-only progress bar that displays the actual playback position
+            // The value comes from elapsed time tracking in core.tick(), not from mouse
+            ui.add(
+                egui::ProgressBar::new(progress_value)
+                    .show_percentage()
+                    .fill(egui::Color32::from_rgb(100, 150, 255))
+            );
+            
+            // Add a label showing time to make it clear it's time-based
+            if let Some(track) = self.core.playlist().active() {
+                let current_secs = progress_value * track.duration_secs as f32;
+                let total_secs = track.duration_secs;
+                ui.label(format!("{:.0}:{:02.0} / {:.0}:{:02.0}", 
+                    current_secs / 60.0, current_secs % 60.0,
+                    total_secs as f32 / 60.0, total_secs as f32 % 60.0));
+            }
             ui.label(&self.status);
         });
         // Playlist panel sits on the left to mimic Winamp's docking paradigm.
@@ -150,11 +183,6 @@ impl eframe::App for WinampApp {
                             .playlist_mut()
                             .add_track(Track::demo(&format!("New Track {}", seed), seed));
                         self.status = "demo track added".to_string();
-                    }
-                    if ui.button("Add sample").clicked() {
-                        if let Some(path) = Self::sample_track_path() {
-                            self.import_audio_track(path);
-                        }
                     }
                     if ui.button("Import audio").clicked() {
                         if let Some(path) = FileDialog::new()
@@ -187,50 +215,64 @@ impl eframe::App for WinampApp {
                     }
                 });
             });
-        // Central panel hosts the faux visualizer plus equalizer controls.
+        // Central panel hosts the visualizer plus equalizer controls.
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("Visualizer");
-            Plot::new("spectrum")
-                .allow_drag(false)
-                .allow_zoom(false)
-                .include_y(0.0)
-                .include_y(1.0)
-                .show(ui, |plot_ui| {
-                    let bars: Vec<_> = self
-                        .core
-                        .visual_spectrum()
-                        .iter()
-                        .enumerate()
-                        .map(|(idx, level)| Bar::new(idx as f64, *level as f64).width(0.8))
-                        .collect();
-                    plot_ui.bar_chart(BarChart::new(bars));
+            ui.vertical(|ui| {
+                ui.heading("Spectrum Visualizer");
+                // Increased height for more visual space
+                Plot::new("spectrum")
+                    .height(350.0)
+                    .allow_drag(false)
+                    .allow_zoom(false)
+                    .include_y(0.0)
+                    .include_y(1.0)
+                    .show(ui, |plot_ui| {
+                        let bars: Vec<_> = self
+                            .core
+                            .visual_spectrum()
+                            .iter()
+                            .enumerate()
+                            .map(|(idx, level)| {
+                                // Make bars more visible with better width
+                                // Color gradient from blue (low) to red (high)
+                                let r = (level * 255.0) as u8;
+                                let g = 0u8;
+                                let b = ((1.0 - level) * 255.0) as u8;
+                                Bar::new(idx as f64, *level as f64)
+                                    .width(0.9)
+                                    .fill(egui::Color32::from_rgb(r, g, b))
+                            })
+                            .collect();
+                        plot_ui.bar_chart(BarChart::new(bars));
+                    });
+                ui.separator();
+                ui.heading("Equalizer");
+                ui.horizontal(|ui| {
+                    if ui.button("Reset").clicked() {
+                        self.core.equalizer_mut().reset();
+                        self.core.sync_eq_to_audio();
+                    }
                 });
-            ui.separator();
-            ui.horizontal(|ui| {
-                ui.label("Equalizer");
-                if ui.button("Reset").clicked() {
-                    self.core.equalizer_mut().reset();
-                }
-            });
-            const ROW_SIZE: usize = EQUALIZER_BANDS / 2;
-            let bands = self.core.equalizer().bands();
-            for (chunk_idx, chunk) in bands.chunks(ROW_SIZE).enumerate() {
+                // Display all equalizer bands on a single horizontal line
                 ui.horizontal_wrapped(|ui| {
-                    for (offset, gain_ref) in chunk.iter().enumerate() {
-                        let band_idx = chunk_idx * ROW_SIZE + offset;
+                    let bands = self.core.equalizer().bands();
+                    for (band_idx, gain_ref) in bands.iter().enumerate() {
                         let mut gain = *gain_ref;
                         ui.vertical(|ui| {
                             ui.label(format!("B{}", band_idx + 1));
-                            if ui
-                                .add(egui::Slider::new(&mut gain, -12.0..=12.0).vertical())
-                                .changed()
-                            {
-                                self.core.equalizer_mut().set_band(band_idx, gain);
-                            }
+                                        if ui
+                                            .add(egui::Slider::new(&mut gain, -12.0..=12.0).vertical().show_value(false))
+                                            .changed()
+                                        {
+                                            self.core.equalizer_mut().set_band(band_idx, gain);
+                                            self.core.sync_eq_to_audio();
+                                        }
+                            // Show current value as text
+                            ui.label(format!("{:.1}", gain));
                         });
                     }
                 });
-            }
+            });
         });
     }
 }

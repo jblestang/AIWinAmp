@@ -63,6 +63,11 @@ impl WinampCore {
         &mut self.equalizer
     }
 
+    /// Syncs equalizer bands to the audio engine.
+    pub fn sync_eq_to_audio(&self) {
+        self.audio.set_eq_bands(self.equalizer.bands());
+    }
+
     /// Returns current equalizer snapshot for display only contexts.
     pub fn equalizer(&self) -> &Equalizer {
         &self.equalizer
@@ -94,6 +99,9 @@ impl WinampCore {
             _ => 0.0,
         };
         if let Some(track) = self.playlist.active() {
+            // Sync EQ and volume before playing
+            self.audio.set_eq_bands(self.equalizer.bands());
+            self.audio.set_volume(self.volume);
             self.audio.play(track)?;
             self.transport = TransportState::Playing { progress };
         }
@@ -156,14 +164,36 @@ impl WinampCore {
                 }
             }
         }
-        let normalized_transport = match self.transport {
-            TransportState::Playing { progress } => self.progress_from_secs(progress),
-            TransportState::Paused { progress } => self.progress_from_secs(progress),
-            TransportState::Stopped => 0.0,
-        };
-        self.visual_levels = self
-            .visual_meter
-            .sample(normalized_transport, self.equalizer.average_gain() / 12.0);
+        // Get real spectrum from audio engine if available, otherwise fall back to fake visualizer
+        if let Some(real_spectrum) = self.audio.get_spectrum() {
+            // Convert Vec<f32> to [f32; VISUAL_BANDS]
+            if real_spectrum.len() == VISUAL_BANDS {
+                for (i, &value) in real_spectrum.iter().enumerate() {
+                    self.visual_levels[i] = value.clamp(0.0, 1.0);
+                }
+            } else if !real_spectrum.is_empty() {
+                // Interpolate if sizes don't match
+                let scale = real_spectrum.len() as f32 / VISUAL_BANDS as f32;
+                for i in 0..VISUAL_BANDS {
+                    let src_idx = (i as f32 * scale) as usize;
+                    if src_idx < real_spectrum.len() {
+                        self.visual_levels[i] = real_spectrum[src_idx].clamp(0.0, 1.0);
+                    } else {
+                        self.visual_levels[i] = 0.0;
+                    }
+                }
+            }
+        } else {
+            // Fall back to fake visualizer when no real audio is available
+            let normalized_transport = match self.transport {
+                TransportState::Playing { progress } => self.progress_from_secs(progress),
+                TransportState::Paused { progress } => self.progress_from_secs(progress),
+                TransportState::Stopped => 0.0,
+            };
+            self.visual_levels = self
+                .visual_meter
+                .sample(normalized_transport, self.equalizer.average_gain() / 12.0);
+        }
         Ok(())
     }
 
@@ -223,6 +253,10 @@ mod tests {
         }
 
         fn set_volume(&self, _volume: f32) {}
+
+        fn get_spectrum(&self) -> Option<Vec<f32>> {
+            None
+        }
     }
 
     /// R3:T3 - play transitions from stopped to playing and hits backend.
