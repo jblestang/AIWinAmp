@@ -2,7 +2,7 @@
 
 AIWinAmp is a lightweight Winamp-inspired desktop music player written in Rust + egui. It focuses on a deterministic simulation of Winamp's signature transport, playlist, equalizer, and UV meter so it runs headless in CI while remaining faithful to the feel of the original.
 
-![Mock UI](assets/screenshots/v1_mock.png)
+![AIWinAmp Screenshot](assets/screenshots/v2_real.png)
 
 ## Features
 - Winamp-style transport bar with Play/Pause/Stop/Prev/Next controls and progress bar.
@@ -39,7 +39,16 @@ cargo +nightly test
 
 ## Assets & Screenshots
 - `assets/audio/sample.wav` – bundled sine-wave sample for demo playlist entries.
-- `assets/screenshots/v1_mock.png` – mock layout snapshot illustrating the current feature set. Capture real screenshots locally once a display server is available.
+- `assets/screenshots/v2_real.png` – captured from the running egui application under Xvfb.
+- `assets/screenshots/v1_mock.png` – early layout mock kept for historical reference.
+
+### Capturing a Fresh Screenshot
+The repository ships with `scripts/capture_screenshot.sh`, which runs the app under `xvfb-run` and uses ImageMagick’s `import` to save a PNG for documentation.
+
+```bash
+sudo apt-get install -y libxkbcommon-x11-0 imagemagick  # once per machine
+./scripts/capture_screenshot.sh assets/screenshots/v2_real.png
+```
 
 ## Comment Density
 Per the project requirement, the code follows roughly a 1:2 comment-to-code line ratio. Doc comments highlight how each struct/function satisfies reflected requirements.
